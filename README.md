@@ -21,11 +21,12 @@ A Model Context Protocol (MCP) server for Robot Framework test automation with c
 ## 🚀 Quick Start
 
 ```bash
-# Install via pip
-pip install robotframework-mcp
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/robotframework-MCP.git
+cd robotframework-MCP
 
-# Or use npx (recommended)
-npx -y git+https://github.com/sourcefuse/robotframework-MCP.git
+# Install dependencies
+pip install -r requirements.txt
 
 # Generate your first test
 python -c "
@@ -108,16 +109,71 @@ robot test_login.robot
 
 ## 🚀 Installation & Usage
 
-### Method 1: Using npx (Recommended)
+### Method 1: Clone Repository (Recommended)
+
+```bash
+# Clone from your GitHub repository
+git clone https://github.com/YOUR_USERNAME/robotframework-MCP.git
+cd robotframework-MCP
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the server
+python mcp_server.py
+```
+
+**For MCP Clients (VS Code, Claude Desktop, etc.):**
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
+    "robotframework-mcp": {
+      "command": "python",
+      "args": ["/path/to/robotframework-MCP/mcp_server.py"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### Method 2: Install Directly from GitHub
+
+```bash
+# Install directly from GitHub
+pip install git+https://github.com/YOUR_USERNAME/robotframework-MCP.git
+
+# Run the server
+python -m src.server
+```
+
+**MCP Configuration:**
+```json
+{
+  "mcpServers": {
+    "robotframework-mcp": {
+      "command": "python",
+      "args": ["-m", "src.server"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### Method 3: Using npx (Node.js)
+
+```json
+{
+  "mcpServers": {
     "robotframework-mcp": {
       "command": "npx",
       "args": [
         "-y",
-        "git+https://github.com/sourcefuse/robotframework-MCP.git"
+        "git+https://github.com/YOUR_USERNAME/robotframework-MCP.git"
       ],
       "type": "stdio"
     }
@@ -125,41 +181,23 @@ robot test_login.robot
 }
 ```
 
-### Method 2: Install from PyPI
-
-```bash
-pip install robotframework-mcp
-robotframework-mcp
-```
-
-MCP Configuration:
-```json
-{
-  "mcpServers": {
-    "robotframework-mcp": {
-      "command": "robotframework-mcp",
-      "type": "stdio"
-    }
-  }
-}
-```
-
-### Method 3: Using UV
+### Method 4: Using UV (Python Package Manager)
 
 ```bash
 # Install UV
 pip install uv
 ```
 
+**MCP Configuration:**
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "robotframework-mcp": {
       "command": "uv",
       "args": [
         "run",
         "--with",
-        "git+https://github.com/sourcefuse/robotframework-MCP.git",
+        "git+https://github.com/YOUR_USERNAME/robotframework-MCP.git",
         "python",
         "-c",
         "from src.server import main; main()"
@@ -170,10 +208,12 @@ pip install uv
 }
 ```
 
-### Method 4: Clone Repository (Development)
+### Method 5: Local Development Setup
+
+### Method 5: Local Development Setup
 
 ```bash
-git clone https://github.com/sourcefuse/robotframework-MCP.git
+git clone https://github.com/YOUR_USERNAME/robotframework-MCP.git
 cd robotframework-MCP
 
 python -m venv .venv
@@ -184,6 +224,80 @@ pip install -r requirements-dev.txt  # For development
 
 python mcp_server.py
 ```
+
+**For MCP Clients:**
+
+```json
+{
+  "mcpServers": {
+    "robotframework-mcp": {
+      "command": "python",
+      "args": ["/absolute/path/to/robotframework-MCP/mcp_server.py"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+Or using Node.js wrapper:
+
+```json
+{
+  "mcpServers": {
+    "robotframework-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/robotframework-MCP/bin/robotframework-mcp.js"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+---
+
+## 📦 Publishing to PyPI (Optional)
+
+If you want to publish your fork to PyPI so others can install via `pip install`:
+
+### 1. Create PyPI Account
+
+- Sign up at [https://pypi.org/account/register/](https://pypi.org/account/register/)
+- Create API token at [https://pypi.org/manage/account/token/](https://pypi.org/manage/account/token/)
+
+### 2. Update Package Name
+
+Edit `pyproject.toml` to use a unique name:
+
+```toml
+[project]
+name = "robotframework-mcp-yourname"  # Change this to avoid conflicts
+version = "2.0.0"
+```
+
+### 3. Build and Upload
+
+```bash
+# Install build tools
+pip install build twine
+
+# Build the package
+python -m build
+
+# Upload to PyPI
+python -m twine upload dist/*
+```
+
+### 4. Install from PyPI
+
+After publishing, users can install with:
+
+```bash
+pip install robotframework-mcp-yourname
+```
+
+**Note**: Replace `YOUR_USERNAME` and `yourname` with your actual GitHub username throughout the README.
 
 ## 🛠️ Available Tools
 
@@ -798,9 +912,9 @@ tests/
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-### Development Setup
+### Quick Start for Contributors
 
 1. **Fork and Clone**
    ```bash
@@ -808,99 +922,38 @@ We welcome contributions! Here's how you can help:
    cd robotframework-MCP
    ```
 
-2. **Create Virtual Environment**
+2. **Set Up Environment**
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   ```
-
-3. **Install Dependencies**
-   ```bash
    pip install -r requirements.txt
    pip install -r requirements-dev.txt
    ```
 
-4. **Run Tests**
-   ```bash
-   pytest tests/ -v
-   pytest tests/ -v --cov=src --cov-report=html
-   ```
-
-5. **Code Quality**
-   ```bash
-   # Format code
-   black src/ tests/
-   isort src/ tests/
-   
-   # Lint code
-   flake8 src/ tests/
-   
-   # Type check
-   mypy src/
-   ```
-
-### Contribution Guidelines
-
-1. **Create a Feature Branch**
+3. **Make Changes**
    ```bash
    git checkout -b feature/amazing-feature
+   # Make your changes
    ```
 
-2. **Make Your Changes**
-   - Write clean, documented code
-   - Add unit tests for new features
-   - Update README if needed
-   - Follow existing code style
-
-3. **Test Your Changes**
+4. **Test Your Changes**
    ```bash
-   # Run all tests
    pytest tests/ -v
-   
-   # Test specific module
-   pytest tests/test_validators.py -v
-   
-   # Check coverage
-   pytest tests/ --cov=src --cov-report=term-missing
+   black src/ tests/
+   flake8 src/ tests/
    ```
 
-4. **Commit Your Changes**
+5. **Submit Pull Request**
    ```bash
-   git add .
    git commit -m "feat: add amazing feature"
-   ```
-   
-   Use conventional commits:
-   - `feat:` - New feature
-   - `fix:` - Bug fix
-   - `docs:` - Documentation changes
-   - `test:` - Test changes
-   - `refactor:` - Code refactoring
-   - `style:` - Code style changes
-   - `chore:` - Build/tooling changes
-
-5. **Push and Create PR**
-   ```bash
    git push origin feature/amazing-feature
    ```
-   Then open a Pull Request on GitHub
 
-### What to Contribute
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
-- 🐛 **Bug Fixes** - Fix issues and improve stability
-- ✨ **New Features** - Add new test templates or tools
-- 📝 **Documentation** - Improve docs and examples
-- 🧪 **Tests** - Increase test coverage
-- 🎨 **UI Frameworks** - Add new selector templates
-- 🌍 **Localization** - Add support for other languages
+### Publishing Your Fork
 
-### Code Review Process
-
-1. All PRs require at least one review
-2. All tests must pass
-3. Code coverage should not decrease
-4. Follow the existing code style
-5. Update documentation as needed
+Want to publish your fork to PyPI? See [PUBLISHING.md](PUBLISHING.md) for step-by-step instructions.
 
 ## 🔄 Changelog
 
