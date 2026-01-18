@@ -24,6 +24,21 @@ class CICDTemplate(BaseTemplate):
             python_version: Python version to use
             include_parallel: Include parallel execution config
         """
+        # Validate inputs to prevent command injection
+        valid_platforms = ["github", "gitlab", "jenkins", "azure"]
+        if platform.lower() not in valid_platforms:
+            raise ValueError(f"Invalid platform: {platform}. Valid platforms: {', '.join(valid_platforms)}")
+        
+        # Validate test_command - only allow safe commands
+        safe_commands = ["robot", "pabot", "python -m robot"]
+        if test_command not in safe_commands:
+            raise ValueError(f"Invalid test_command: {test_command}. Valid commands: {', '.join(safe_commands)}")
+        
+        # Validate python_version format (e.g., 3.11, 3.10, 3.9)
+        import re
+        if not re.match(r'^\d+\.\d+$', python_version):
+            raise ValueError(f"Invalid python_version format: {python_version}. Use format like '3.11'")
+        
         if platform.lower() == "github":
             return self._generate_github_actions(test_command, python_version, include_parallel)
         elif platform.lower() == "gitlab":

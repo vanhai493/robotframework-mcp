@@ -29,6 +29,22 @@ class APITestTemplate(BaseTemplate):
             include_crud: Include CRUD operation tests
             include_error_handling: Include error handling tests
         """
+        # Validate inputs
+        if not base_url or not base_url.strip():
+            raise ValueError("base_url cannot be empty")
+        
+        if not endpoint or not endpoint.strip():
+            raise ValueError("endpoint cannot be empty")
+        
+        valid_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+        if method.upper() not in valid_methods:
+            raise ValueError(f"Invalid HTTP method: {method}. Valid methods: {', '.join(valid_methods)}")
+        
+        # Sanitize inputs
+        base_url = base_url.strip()
+        endpoint = endpoint.strip()
+        method = method.upper()
+        
         result = self._get_header("API Integration Test")
         result += self._get_settings()
         result += self._get_variables(base_url, endpoint)

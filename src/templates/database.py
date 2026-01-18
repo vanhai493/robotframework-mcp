@@ -28,6 +28,22 @@ class DatabaseTestTemplate(BaseTemplate):
             include_crud: Include CRUD tests
             include_validation: Include data validation tests
         """
+        # Validate inputs
+        valid_db_types = ["postgresql", "mysql", "sqlite", "oracle"]
+        if db_type.lower() not in valid_db_types:
+            raise ValueError(f"Invalid db_type: {db_type}. Valid types: {', '.join(valid_db_types)}")
+        
+        if not host or not host.strip():
+            raise ValueError("Host cannot be empty")
+        
+        if not database or not database.strip():
+            raise ValueError("Database name cannot be empty")
+        
+        # Sanitize inputs to prevent injection
+        host = host.strip()
+        database = database.strip()
+        port = port.strip()
+        
         result = self._get_header("Database Test")
         result += self._get_settings(db_type)
         result += self._get_variables(db_type, host, port, database)
@@ -232,10 +248,15 @@ Rollback Transaction
 Insert Multiple Records
     [Arguments]    ${table}    ${records}
     [Documentation]    Insert multiple records into table
+    ...    WARNING: This keyword uses string interpolation for demonstration.
+    ...    In production, use DatabaseLibrary's parameterized queries to prevent SQL injection.
+    ...    Example: Execute Sql String    INSERT INTO table (col) VALUES (?)    value
     FOR    ${record}    IN    @{records}
         ${columns}=    Get Dictionary Keys    ${record}
         ${values}=    Get Dictionary Values    ${record}
         ${col_str}=    Catenate    SEPARATOR=,    @{columns}
+        # NOTE: This uses string interpolation - vulnerable to SQL injection
+        # For production use, implement parameterized queries with DatabaseLibrary
         ${val_str}=    Evaluate    ','.join([f"'{v}'" for v in ${values}])
         Execute Sql String    INSERT INTO ${table} (${col_str}) VALUES (${val_str})
     END

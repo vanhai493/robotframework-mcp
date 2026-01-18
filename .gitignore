@@ -96,3 +96,8 @@ config.local.json
 tmp/
 temp/
 *.tmp
+
+# Kiro - ignore temporary task completion reports and documentation
+.kiro/specs/**/TASK_*.md
+.kiro/specs/**/docs/
+.kiro/specs/**/examples/

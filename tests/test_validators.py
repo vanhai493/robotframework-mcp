@@ -9,7 +9,7 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.validators import InputValidator, ValidationError, ValidationResult
+from src.validators import InputValidator, ValidationError, ValidationResult, ErrorContext, ErrorFormatter
 
 
 class TestURLValidation:
@@ -303,5 +303,355 @@ class TestValidationResult:
         assert len(result.warnings) == 1
 
 
+class TestErrorContext:
+    """Tests for ErrorContext dataclass"""
+    
+    def test_error_context_creation_with_all_fields(self):
+        """Test ErrorContext creation with all fields"""
+        context = ErrorContext(
+            error_code="VAL001",
+            field="url",
+            message="Invalid URL format",
+            suggestion="Ensure URL starts with http:// or https://",
+            example="https://example.com",
+            documentation_url="https://docs.example.com/validation"
+        )
+        assert context.error_code == "VAL001"
+        assert context.field == "url"
+        assert context.message == "Invalid URL format"
+        assert context.suggestion == "Ensure URL starts with http:// or https://"
+        assert context.example == "https://example.com"
+        assert context.documentation_url == "https://docs.example.com/validation"
+    
+    def test_error_context_creation_with_required_fields_only(self):
+        """Test ErrorContext creation with only required fields"""
+        context = ErrorContext(
+            error_code="VAL002",
+            field="username",
+            message="Username cannot be empty",
+            suggestion="Provide a valid username"
+        )
+        assert context.error_code == "VAL002"
+        assert context.field == "username"
+        assert context.message == "Username cannot be empty"
+        assert context.suggestion == "Provide a valid username"
+        assert context.example is None
+        assert context.documentation_url is None
+    
+    def test_error_context_with_example_only(self):
+        """Test ErrorContext with example but no documentation URL"""
+        context = ErrorContext(
+            error_code="VAL003",
+            field="selector",
+            message="Invalid selector format",
+            suggestion="Use a valid selector format",
+            example="id=username or css=.login-button"
+        )
+        assert context.error_code == "VAL003"
+        assert context.example == "id=username or css=.login-button"
+        assert context.documentation_url is None
+    
+    def test_error_context_with_documentation_url_only(self):
+        """Test ErrorContext with documentation URL but no example"""
+        context = ErrorContext(
+            error_code="SEC001",
+            field="query",
+            message="Potential SQL injection detected",
+            suggestion="Use parameterized queries",
+            documentation_url="https://docs.example.com/security/sql-injection"
+        )
+        assert context.error_code == "SEC001"
+        assert context.documentation_url == "https://docs.example.com/security/sql-injection"
+        assert context.example is None
+    
+    def test_error_context_is_dataclass(self):
+        """Test that ErrorContext is a proper dataclass"""
+        from dataclasses import is_dataclass
+        assert is_dataclass(ErrorContext)
+    
+    def test_error_context_equality(self):
+        """Test ErrorContext equality comparison"""
+        context1 = ErrorContext(
+            error_code="VAL001",
+            field="url",
+            message="Invalid URL",
+            suggestion="Fix URL"
+        )
+        context2 = ErrorContext(
+            error_code="VAL001",
+            field="url",
+            message="Invalid URL",
+            suggestion="Fix URL"
+        )
+        assert context1 == context2
+    
+    def test_error_context_inequality(self):
+        """Test ErrorContext inequality comparison"""
+        context1 = ErrorContext(
+            error_code="VAL001",
+            field="url",
+            message="Invalid URL",
+            suggestion="Fix URL"
+        )
+        context2 = ErrorContext(
+            error_code="VAL002",
+            field="username",
+            message="Invalid username",
+            suggestion="Fix username"
+        )
+        assert context1 != context2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestErrorFormatter:
+    """Tests for ErrorFormatter class"""
+    
+    def test_error_codes_registry_exists(self):
+        """Test that error codes registry is defined"""
+        assert hasattr(ErrorFormatter, 'ERROR_CODES')
+        assert isinstance(ErrorFormatter.ERROR_CODES, dict)
+        assert len(ErrorFormatter.ERROR_CODES) > 0
+    
+    def test_error_codes_have_descriptions(self):
+        """Test that all error codes have descriptions"""
+        for code, description in ErrorFormatter.ERROR_CODES.items():
+            assert isinstance(code, str)
+            assert isinstance(description, str)
+            assert len(description) > 0
+    
+    def test_format_validation_error_url_empty(self):
+        """Test formatting empty URL validation error"""
+        error = ValidationError("URL cannot be empty", field="url")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL009" in result
+        assert "Field: url" in result
+        assert "Suggestion:" in result
+        assert "Example:" in result
+        assert "https://example.com" in result
+    
+    def test_format_validation_error_url_protocol(self):
+        """Test formatting URL protocol validation error"""
+        error = ValidationError("URL must use http or https protocol", field="url")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL001" in result
+        assert "Field: url" in result
+        assert "protocol" in result.lower()
+        assert "Example:" in result
+    
+    def test_format_validation_error_username_empty(self):
+        """Test formatting empty username validation error"""
+        error = ValidationError("Username cannot be empty", field="username")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL009" in result
+        assert "Field: username" in result
+        assert "testuser" in result.lower()
+    
+    def test_format_validation_error_password_invalid_char(self):
+        """Test formatting password with invalid character error"""
+        error = ValidationError("Password contains invalid character: '&'", field="password")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL002" in result
+        assert "Field: password" in result
+        assert "special characters" in result.lower()
+    
+    def test_format_validation_error_selector_empty(self):
+        """Test formatting empty selector validation error"""
+        error = ValidationError("Selector cannot be empty", field="selector")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL009" in result
+        assert "Field: selector" in result
+        assert "id=" in result or "css=" in result
+    
+    def test_format_validation_error_selector_invalid(self):
+        """Test formatting invalid selector validation error"""
+        error = ValidationError("Invalid selector format: invalid", field="selector")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL003" in result
+        assert "Field: selector" in result
+        assert "Example:" in result
+        assert "xpath=" in result or "css=" in result
+    
+    def test_format_validation_error_template_type(self):
+        """Test formatting invalid template type error"""
+        error = ValidationError("Invalid template type: invalid", field="template_type")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL004" in result
+        assert "Field: template_type" in result
+    
+    def test_format_validation_error_path_traversal(self):
+        """Test formatting path traversal error"""
+        error = ValidationError("Invalid file path: path traversal not allowed", field="path")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "SEC003" in result
+        assert "Field: path" in result
+        assert "relative path" in result.lower()
+    
+    def test_format_validation_error_http_method(self):
+        """Test formatting invalid HTTP method error"""
+        error = ValidationError("Invalid HTTP method: INVALID", field="method")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL007" in result
+        assert "Field: method" in result
+        assert "GET" in result or "POST" in result
+    
+    def test_format_validation_error_timeout(self):
+        """Test formatting invalid timeout error"""
+        error = ValidationError("Invalid timeout format: invalid", field="timeout")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL008" in result
+        assert "Field: timeout" in result
+        assert "10s" in result or "500ms" in result
+    
+    def test_format_validation_error_unknown_field(self):
+        """Test formatting error with unknown field"""
+        error = ValidationError("Some error", field="unknown_field")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL001" in result
+        assert "Field: unknown_field" in result
+        assert "Suggestion:" in result
+    
+    def test_format_validation_error_no_field(self):
+        """Test formatting error without field"""
+        error = ValidationError("Some error")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "Field: unknown" in result
+    
+    def test_format_unexpected_error(self):
+        """Test formatting unexpected error"""
+        error = ValueError("Something went wrong")
+        result = ErrorFormatter.format_unexpected_error(error)
+        
+        assert "UNEXPECTED ERROR" in result
+        assert "Error Type: ValueError" in result
+        assert "Message: Something went wrong" in result
+        assert "Suggestion:" in result
+    
+    def test_format_unexpected_error_different_types(self):
+        """Test formatting different types of unexpected errors"""
+        errors = [
+            TypeError("Type error"),
+            KeyError("Key error"),
+            AttributeError("Attribute error"),
+        ]
+        
+        for error in errors:
+            result = ErrorFormatter.format_unexpected_error(error)
+            assert "UNEXPECTED ERROR" in result
+            assert type(error).__name__ in result
+            assert str(error) in result
+    
+    def test_get_error_context_url_too_long(self):
+        """Test getting error context for URL too long"""
+        error = ValidationError("URL too long (max 2048 characters)", field="url")
+        context = ErrorFormatter._get_error_context(error)
+        
+        assert context.error_code == "VAL010"
+        assert context.field == "url"
+        assert "2048" in context.suggestion
+    
+    def test_get_error_context_credentials_too_long(self):
+        """Test getting error context for credentials too long"""
+        error = ValidationError("Username too long (max 100 characters)", field="username")
+        context = ErrorFormatter._get_error_context(error)
+        
+        assert context.error_code == "VAL010"
+        assert context.field == "username"
+        assert "100" in context.suggestion
+    
+    def test_format_validation_error_includes_all_sections(self):
+        """Test that formatted error includes all expected sections"""
+        error = ValidationError("URL cannot be empty", field="url")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        # Check for all expected sections
+        assert "# VALIDATION ERROR" in result
+        assert "## Field:" in result
+        assert "## Issue:" in result
+        assert "## Suggestion:" in result
+        assert "## Example:" in result
+    
+    def test_format_validation_error_with_documentation_url(self):
+        """Test formatting error that includes documentation URL"""
+        error = ValidationError("URL cannot be empty", field="url")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        # URL empty errors should include documentation
+        if "Documentation:" in result:
+            assert "http" in result
+    
+    def test_error_formatter_is_class_method(self):
+        """Test that ErrorFormatter methods are class methods"""
+        import inspect
+        
+        # Check that format_validation_error is a classmethod
+        assert isinstance(inspect.getattr_static(ErrorFormatter, 'format_validation_error'), classmethod)
+        assert isinstance(inspect.getattr_static(ErrorFormatter, 'format_unexpected_error'), classmethod)
+        assert isinstance(inspect.getattr_static(ErrorFormatter, '_get_error_context'), classmethod)
+    
+    def test_error_codes_follow_naming_convention(self):
+        """Test that error codes follow the naming convention"""
+        for code in ErrorFormatter.ERROR_CODES.keys():
+            # Error codes should be 3 letters + 3 digits
+            assert len(code) == 6
+            assert code[:3].isalpha()
+            assert code[3:].isdigit()
+            # First 3 letters should be uppercase
+            assert code[:3].isupper()
+    
+    def test_error_codes_categories(self):
+        """Test that error codes are properly categorized"""
+        val_codes = [code for code in ErrorFormatter.ERROR_CODES.keys() if code.startswith("VAL")]
+        sec_codes = [code for code in ErrorFormatter.ERROR_CODES.keys() if code.startswith("SEC")]
+        cfg_codes = [code for code in ErrorFormatter.ERROR_CODES.keys() if code.startswith("CFG")]
+        
+        # Should have codes in each category
+        assert len(val_codes) > 0, "Should have validation error codes"
+        assert len(sec_codes) > 0, "Should have security error codes"
+        assert len(cfg_codes) > 0, "Should have configuration error codes"
+    
+    def test_format_validation_error_path_extension(self):
+        """Test formatting path extension error"""
+        error = ValidationError("Invalid file extension. Allowed: .robot, .py", field="path")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL006" in result
+        assert "Field: path" in result
+        assert "extension" in result.lower()
+    
+    def test_format_validation_error_selector_too_long(self):
+        """Test formatting selector too long error"""
+        error = ValidationError("Selector too long (max 500 characters)", field="selector")
+        result = ErrorFormatter.format_validation_error(error)
+        
+        assert "VALIDATION ERROR" in result
+        assert "VAL010" in result
+        assert "Field: selector" in result
+        assert "500" in result

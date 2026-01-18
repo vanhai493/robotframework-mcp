@@ -18,6 +18,283 @@ class ValidationError(Exception):
 
 
 @dataclass
+class ErrorContext:
+    """
+    Context information for errors with actionable guidance.
+    
+    This dataclass provides structured error information including:
+    - Error codes for programmatic handling
+    - Field-specific error messages
+    - Actionable suggestions for resolution
+    - Examples of valid input
+    - Links to relevant documentation
+    
+    Attributes:
+        error_code: Unique error code (e.g., "VAL001", "SEC001")
+        field: Name of the field that caused the error
+        message: Human-readable error message
+        suggestion: Actionable suggestion for fixing the error
+        example: Optional example of valid input
+        documentation_url: Optional URL to relevant documentation
+    """
+    error_code: str
+    field: str
+    message: str
+    suggestion: str
+    example: Optional[str] = None
+    documentation_url: Optional[str] = None
+
+
+class ErrorFormatter:
+    """
+    Format errors with helpful context and actionable suggestions.
+    
+    This class provides standardized error formatting for validation errors
+    and other exceptions, including error codes, suggestions, examples, and
+    documentation links to help users quickly understand and fix issues.
+    """
+    
+    # Error code registry
+    ERROR_CODES = {
+        # Validation errors (VAL)
+        "VAL001": "Invalid URL format",
+        "VAL002": "Invalid credentials",
+        "VAL003": "Invalid selector",
+        "VAL004": "Invalid template type",
+        "VAL005": "Invalid Robot Framework code",
+        "VAL006": "Invalid file path",
+        "VAL007": "Invalid HTTP method",
+        "VAL008": "Invalid timeout format",
+        "VAL009": "Empty input",
+        "VAL010": "Input too long",
+        
+        # Security errors (SEC)
+        "SEC001": "Potential SQL injection",
+        "SEC002": "Potential command injection",
+        "SEC003": "Path traversal attempt",
+        "SEC004": "Potential XSS vulnerability",
+        
+        # Configuration errors (CFG)
+        "CFG001": "Invalid configuration format",
+        "CFG002": "Missing required configuration",
+        "CFG003": "Invalid configuration value",
+    }
+    
+    @classmethod
+    def format_validation_error(cls, error: ValidationError) -> str:
+        """
+        Format a validation error with context and suggestions.
+        
+        Args:
+            error: ValidationError to format
+            
+        Returns:
+            Formatted error message with context
+        """
+        context = cls._get_error_context(error)
+        
+        output = f"# VALIDATION ERROR [{context.error_code}]\n\n"
+        output += f"## Field: {context.field}\n"
+        output += f"## Issue: {context.message}\n\n"
+        output += f"## Suggestion:\n{context.suggestion}\n\n"
+        
+        if context.example:
+            output += f"## Example:\n{context.example}\n\n"
+        
+        if context.documentation_url:
+            output += f"## Documentation:\n{context.documentation_url}\n"
+        
+        return output
+    
+    @classmethod
+    def format_unexpected_error(cls, error: Exception) -> str:
+        """
+        Format an unexpected error with basic context.
+        
+        Args:
+            error: Exception to format
+            
+        Returns:
+            Formatted error message
+        """
+        output = "# UNEXPECTED ERROR\n\n"
+        output += f"## Error Type: {type(error).__name__}\n"
+        output += f"## Message: {str(error)}\n\n"
+        output += "## Suggestion:\n"
+        output += "This is an unexpected error. Please check your inputs and try again.\n"
+        output += "If the problem persists, please report this issue with the error details above.\n"
+        
+        return output
+    
+    @classmethod
+    def _get_error_context(cls, error: ValidationError) -> ErrorContext:
+        """
+        Get error context with suggestions and examples based on the error.
+        
+        Args:
+            error: ValidationError to analyze
+            
+        Returns:
+            ErrorContext with detailed information
+        """
+        field = error.field or "unknown"
+        message = error.message
+        
+        # Determine error code and provide context based on field and message
+        if field == "url":
+            if "empty" in message.lower():
+                return ErrorContext(
+                    error_code="VAL009",
+                    field=field,
+                    message=message,
+                    suggestion="Provide a valid URL starting with http:// or https://",
+                    example="https://example.com/login",
+                    documentation_url="https://docs.python.org/3/library/urllib.parse.html"
+                )
+            elif "too long" in message.lower():
+                return ErrorContext(
+                    error_code="VAL010",
+                    field=field,
+                    message=message,
+                    suggestion=f"URL must be less than {InputValidator.MAX_URL_LENGTH} characters",
+                    example="https://example.com/path"
+                )
+            elif "protocol" in message.lower():
+                return ErrorContext(
+                    error_code="VAL001",
+                    field=field,
+                    message=message,
+                    suggestion="URL must use http:// or https:// protocol",
+                    example="https://example.com (not ftp://example.com)"
+                )
+            else:
+                return ErrorContext(
+                    error_code="VAL001",
+                    field=field,
+                    message=message,
+                    suggestion="Provide a complete URL with protocol and domain",
+                    example="https://example.com/login"
+                )
+        
+        elif field in ["username", "password"]:
+            if "empty" in message.lower():
+                return ErrorContext(
+                    error_code="VAL009",
+                    field=field,
+                    message=message,
+                    suggestion=f"Provide a non-empty {field}",
+                    example="testuser123" if field == "username" else "SecurePass123!"
+                )
+            elif "too long" in message.lower():
+                max_len = InputValidator.MAX_USERNAME_LENGTH if field == "username" else InputValidator.MAX_PASSWORD_LENGTH
+                return ErrorContext(
+                    error_code="VAL010",
+                    field=field,
+                    message=message,
+                    suggestion=f"{field.capitalize()} must be less than {max_len} characters"
+                )
+            elif "invalid character" in message.lower():
+                return ErrorContext(
+                    error_code="VAL002",
+                    field=field,
+                    message=message,
+                    suggestion=f"Remove special characters from {field}. Use only alphanumeric characters and basic punctuation.",
+                    example="testuser123" if field == "username" else "SecurePass123"
+                )
+            else:
+                return ErrorContext(
+                    error_code="VAL002",
+                    field=field,
+                    message=message,
+                    suggestion=f"Provide valid {field} without dangerous characters"
+                )
+        
+        elif field == "selector":
+            if "empty" in message.lower():
+                return ErrorContext(
+                    error_code="VAL009",
+                    field=field,
+                    message=message,
+                    suggestion="Provide a valid CSS or XPath selector",
+                    example="id=username or css=.login-button or xpath=//input[@name='email']"
+                )
+            elif "too long" in message.lower():
+                return ErrorContext(
+                    error_code="VAL010",
+                    field=field,
+                    message=message,
+                    suggestion=f"Selector must be less than {InputValidator.MAX_SELECTOR_LENGTH} characters"
+                )
+            else:
+                return ErrorContext(
+                    error_code="VAL003",
+                    field=field,
+                    message=message,
+                    suggestion="Use a valid selector format: id=, name=, class=, css=, xpath=, tag=, link=, or plain CSS",
+                    example="id=username\nname=email\ncss=.login-button\nxpath=//input[@type='submit']"
+                )
+        
+        elif field == "template_type":
+            return ErrorContext(
+                error_code="VAL004",
+                field=field,
+                message=message,
+                suggestion="Use one of the valid template types listed in the error message",
+                example="generic, bootstrap, material, custom"
+            )
+        
+        elif field == "path":
+            if "traversal" in message.lower():
+                return ErrorContext(
+                    error_code="SEC003",
+                    field=field,
+                    message=message,
+                    suggestion="Use relative paths without '..' or leading slashes",
+                    example="tests/login_test.robot"
+                )
+            elif "extension" in message.lower():
+                return ErrorContext(
+                    error_code="VAL006",
+                    field=field,
+                    message=message,
+                    suggestion="Use a file with one of the allowed extensions"
+                )
+            else:
+                return ErrorContext(
+                    error_code="VAL006",
+                    field=field,
+                    message=message,
+                    suggestion="Provide a valid relative file path"
+                )
+        
+        elif field == "method":
+            return ErrorContext(
+                error_code="VAL007",
+                field=field,
+                message=message,
+                suggestion="Use a valid HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, or OPTIONS",
+                example="GET or POST"
+            )
+        
+        elif field == "timeout":
+            return ErrorContext(
+                error_code="VAL008",
+                field=field,
+                message=message,
+                suggestion="Use format: number followed by optional unit (ms, s, m, h)",
+                example="10s, 500ms, 2m, 1h"
+            )
+        
+        # Default error context
+        return ErrorContext(
+            error_code="VAL001",
+            field=field,
+            message=message,
+            suggestion="Please check your input and try again with valid data"
+        )
+
+
+@dataclass
 class ValidationResult:
     """Result of a validation operation"""
     is_valid: bool
