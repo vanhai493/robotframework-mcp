@@ -1,0 +1,310 @@
+"""
+Mobile testing templates for Robot Framework (Appium)
+"""
+
+from string import Template
+from .base import BaseTemplate
+
+
+class MobileTestTemplate(BaseTemplate):
+    """Template for generating mobile app tests using Appium"""
+    
+    def generate(
+        self,
+        platform: str = "android",
+        app_package: str = "",
+        app_activity: str = "",
+        device_name: str = "emulator-5554",
+        include_gestures: bool = True,
+    ) -> str:
+        """
+        Generate mobile test template
+        
+        Args:
+            platform: Mobile platform (android/ios)
+            app_package: Android app package name
+            app_activity: Android app activity
+            device_name: Device name or emulator
+            include_gestures: Include gesture keywords
+        """
+        result = self._get_header("Mobile App Test (Appium)")
+        result += self._get_settings()
+        result += self._get_variables(platform, app_package, app_activity, device_name)
+        result += self._get_test_cases(platform)
+        result += self._get_keywords()
+        
+        if include_gestures:
+            result += self._get_gesture_keywords()
+        
+        return result
+    
+    def _get_settings(self) -> str:
+        return """*** Settings ***
+Library    AppiumLibrary
+Library    Collections
+Library    String
+
+Suite Setup    Open Mobile Application
+Suite Teardown    Close Application
+Test Teardown    Run Keyword If Test Failed    Capture Mobile Screenshot
+
+"""
+    
+    def _get_variables(
+        self, platform: str, app_package: str, app_activity: str, device_name: str
+    ) -> str:
+        if platform.lower() == "android":
+            return f"""*** Variables ***
+${{PLATFORM}}              Android
+${{PLATFORM_VERSION}}      12.0
+${{DEVICE_NAME}}           {device_name}
+${{APP_PACKAGE}}           {app_package or 'com.example.app'}
+${{APP_ACTIVITY}}          {app_activity or '.MainActivity'}
+${{APPIUM_SERVER}}         http://localhost:4723/wd/hub
+${{AUTOMATION_NAME}}       UiAutomator2
+${{TIMEOUT}}               30s
+
+"""
+        else:
+            return f"""*** Variables ***
+${{PLATFORM}}              iOS
+${{PLATFORM_VERSION}}      16.0
+${{DEVICE_NAME}}           {device_name or 'iPhone 14'}
+${{BUNDLE_ID}}             {app_package or 'com.example.app'}
+${{APPIUM_SERVER}}         http://localhost:4723/wd/hub
+${{AUTOMATION_NAME}}       XCUITest
+${{TIMEOUT}}               30s
+
+"""
+    
+    def _get_test_cases(self, platform: str) -> str:
+        return """*** Test Cases ***
+App Launch Test
+    [Documentation]    Verify app launches successfully
+    [Tags]    mobile    smoke    launch
+    Wait Until Page Contains Element    id=main_container    ${TIMEOUT}
+    Log    App launched successfully
+
+Login Flow Test
+    [Documentation]    Test mobile login flow
+    [Tags]    mobile    login
+    Wait Until Element Is Visible    id=username_field    ${TIMEOUT}
+    Input Text    id=username_field    testuser
+    Input Text    id=password_field    testpass
+    Click Element    id=login_button
+    Wait Until Page Contains Element    id=home_screen    ${TIMEOUT}
+
+Navigation Test
+    [Documentation]    Test app navigation
+    [Tags]    mobile    navigation
+    Click Element    id=menu_button
+    Wait Until Element Is Visible    id=menu_drawer    ${TIMEOUT}
+    Click Element    id=settings_option
+    Wait Until Page Contains Element    id=settings_screen    ${TIMEOUT}
+    Go Back
+    Wait Until Page Contains Element    id=home_screen    ${TIMEOUT}
+
+Form Input Test
+    [Documentation]    Test form input on mobile
+    [Tags]    mobile    form
+    Click Element    id=form_button
+    Wait Until Element Is Visible    id=form_screen    ${TIMEOUT}
+    Input Text    id=name_field    John Doe
+    Input Text    id=email_field    john@example.com
+    Hide Keyboard
+    Click Element    id=submit_button
+    Wait Until Page Contains    Success    ${TIMEOUT}
+
+Scroll And Find Element Test
+    [Documentation]    Test scrolling to find element
+    [Tags]    mobile    scroll
+    Scroll Down    id=scroll_view
+    Wait Until Element Is Visible    id=bottom_element    ${TIMEOUT}
+    Scroll Up    id=scroll_view
+    Wait Until Element Is Visible    id=top_element    ${TIMEOUT}
+
+Orientation Change Test
+    [Documentation]    Test app behavior on orientation change
+    [Tags]    mobile    orientation
+    ${original}=    Get Appium Timeout
+    Set Appium Timeout    5s
+    Landscape
+    Sleep    1s
+    Page Should Contain Element    id=main_container
+    Portrait
+    Sleep    1s
+    Page Should Contain Element    id=main_container
+    Set Appium Timeout    ${original}
+
+Background And Foreground Test
+    [Documentation]    Test app background/foreground behavior
+    [Tags]    mobile    lifecycle
+    Background App    5
+    Wait Until Page Contains Element    id=main_container    ${TIMEOUT}
+    Log    App resumed successfully
+
+"""
+    
+    def _get_keywords(self) -> str:
+        return """*** Keywords ***
+Open Mobile Application
+    [Documentation]    Open mobile application with capabilities
+    ${caps}=    Create Dictionary
+    ...    platformName=${PLATFORM}
+    ...    platformVersion=${PLATFORM_VERSION}
+    ...    deviceName=${DEVICE_NAME}
+    ...    automationName=${AUTOMATION_NAME}
+    ...    noReset=${True}
+    ...    fullReset=${False}
+    
+    # Add platform-specific capabilities
+    Run Keyword If    '${PLATFORM}' == 'Android'
+    ...    Set To Dictionary    ${caps}    appPackage=${APP_PACKAGE}    appActivity=${APP_ACTIVITY}
+    Run Keyword If    '${PLATFORM}' == 'iOS'
+    ...    Set To Dictionary    ${caps}    bundleId=${BUNDLE_ID}
+    
+    Open Application    ${APPIUM_SERVER}    &{caps}
+    Set Appium Timeout    ${TIMEOUT}
+
+Capture Mobile Screenshot
+    [Documentation]    Capture screenshot on mobile
+    ${timestamp}=    Get Time    epoch
+    Capture Page Screenshot    mobile_failure_${timestamp}.png
+
+Wait And Click Element
+    [Arguments]    ${locator}
+    [Documentation]    Wait for element and click
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    Click Element    ${locator}
+
+Wait And Input Text
+    [Arguments]    ${locator}    ${text}
+    [Documentation]    Wait for element and input text
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    Clear Text    ${locator}
+    Input Text    ${locator}    ${text}
+
+Verify Element Text
+    [Arguments]    ${locator}    ${expected_text}
+    [Documentation]    Verify element contains expected text
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    ${actual}=    Get Text    ${locator}
+    Should Be Equal    ${actual}    ${expected_text}
+
+Scroll To Element
+    [Arguments]    ${locator}    ${direction}=down    ${max_scrolls}=5
+    [Documentation]    Scroll until element is visible
+    FOR    ${i}    IN RANGE    ${max_scrolls}
+        ${visible}=    Run Keyword And Return Status    Element Should Be Visible    ${locator}
+        Exit For Loop If    ${visible}
+        Run Keyword If    '${direction}' == 'down'    Scroll Down
+        ...    ELSE    Scroll Up
+    END
+    Element Should Be Visible    ${locator}
+
+Tap At Coordinates
+    [Arguments]    ${x}    ${y}
+    [Documentation]    Tap at specific coordinates
+    Click A Point    ${x}    ${y}
+
+Long Press Element
+    [Arguments]    ${locator}    ${duration}=1000
+    [Documentation]    Long press on element
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    Long Press    ${locator}    ${duration}
+
+Get Element Bounds
+    [Arguments]    ${locator}
+    [Documentation]    Get element location and size
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    ${location}=    Get Element Location    ${locator}
+    ${size}=    Get Element Size    ${locator}
+    ${bounds}=    Create Dictionary
+    ...    x=${location}[x]    y=${location}[y]
+    ...    width=${size}[width]    height=${size}[height]
+    RETURN    ${bounds}
+
+Verify Toast Message
+    [Arguments]    ${expected_message}
+    [Documentation]    Verify toast message (Android)
+    ${toast}=    Get Text    xpath=//android.widget.Toast
+    Should Contain    ${toast}    ${expected_message}
+
+"""
+    
+    def _get_gesture_keywords(self) -> str:
+        return """# ============================================
+# Gesture Keywords
+# ============================================
+
+Swipe Left
+    [Arguments]    ${locator}=${None}
+    [Documentation]    Swipe left gesture
+    ${width}=    Execute JavaScript    return window.innerWidth;
+    ${height}=    Execute JavaScript    return window.innerHeight;
+    ${start_x}=    Evaluate    ${width} * 0.8
+    ${end_x}=    Evaluate    ${width} * 0.2
+    ${y}=    Evaluate    ${height} * 0.5
+    Swipe    ${start_x}    ${y}    ${end_x}    ${y}    500
+
+Swipe Right
+    [Arguments]    ${locator}=${None}
+    [Documentation]    Swipe right gesture
+    ${width}=    Execute JavaScript    return window.innerWidth;
+    ${height}=    Execute JavaScript    return window.innerHeight;
+    ${start_x}=    Evaluate    ${width} * 0.2
+    ${end_x}=    Evaluate    ${width} * 0.8
+    ${y}=    Evaluate    ${height} * 0.5
+    Swipe    ${start_x}    ${y}    ${end_x}    ${y}    500
+
+Swipe Up
+    [Documentation]    Swipe up gesture
+    ${width}=    Execute JavaScript    return window.innerWidth;
+    ${height}=    Execute JavaScript    return window.innerHeight;
+    ${x}=    Evaluate    ${width} * 0.5
+    ${start_y}=    Evaluate    ${height} * 0.8
+    ${end_y}=    Evaluate    ${height} * 0.2
+    Swipe    ${x}    ${start_y}    ${x}    ${end_y}    500
+
+Swipe Down
+    [Documentation]    Swipe down gesture
+    ${width}=    Execute JavaScript    return window.innerWidth;
+    ${height}=    Execute JavaScript    return window.innerHeight;
+    ${x}=    Evaluate    ${width} * 0.5
+    ${start_y}=    Evaluate    ${height} * 0.2
+    ${end_y}=    Evaluate    ${height} * 0.8
+    Swipe    ${x}    ${start_y}    ${x}    ${end_y}    500
+
+Pinch To Zoom In
+    [Arguments]    ${locator}
+    [Documentation]    Pinch to zoom in gesture
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    Pinch    ${locator}    percent=200    steps=10
+
+Pinch To Zoom Out
+    [Arguments]    ${locator}
+    [Documentation]    Pinch to zoom out gesture
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    Pinch    ${locator}    percent=50    steps=10
+
+Double Tap Element
+    [Arguments]    ${locator}
+    [Documentation]    Double tap on element
+    Wait Until Element Is Visible    ${locator}    ${TIMEOUT}
+    ${location}=    Get Element Location    ${locator}
+    ${size}=    Get Element Size    ${locator}
+    ${x}=    Evaluate    ${location}[x] + ${size}[width] / 2
+    ${y}=    Evaluate    ${location}[y] + ${size}[height] / 2
+    Click A Point    ${x}    ${y}
+    Sleep    0.1s
+    Click A Point    ${x}    ${y}
+
+Drag Element To Element
+    [Arguments]    ${source_locator}    ${target_locator}
+    [Documentation]    Drag element to another element
+    Wait Until Element Is Visible    ${source_locator}    ${TIMEOUT}
+    Wait Until Element Is Visible    ${target_locator}    ${TIMEOUT}
+    ${source_loc}=    Get Element Location    ${source_locator}
+    ${target_loc}=    Get Element Location    ${target_locator}
+    Swipe    ${source_loc}[x]    ${source_loc}[y]    ${target_loc}[x]    ${target_loc}[y]    1000
+"""

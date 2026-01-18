@@ -1,4 +1,22 @@
+# Core dependencies
 mcp>=1.0.0
 robotframework>=6.0
 selenium>=4.0.0
 robotframework-seleniumlibrary>=6.0
+
+# Optional: Mobile testing
+# robotframework-appiumlibrary>=2.0.0
+
+# Optional: API testing
+# robotframework-requests>=0.9.0
+
+# Optional: Database testing
+# robotframework-databaselibrary>=1.2.0
+# psycopg2-binary>=2.9.0
+# pymysql>=1.0.0
+
+# Optional: Data-driven testing
+# robotframework-datadriver>=1.8.0
+
+# Optional: Parallel execution
+# robotframework-pabot>=2.16.0

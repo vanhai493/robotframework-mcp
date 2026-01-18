@@ -1,15 +1,20 @@
 {
   "name": "robotframework-mcp",
-  "version": "1.0.0",
-  "description": "MCP Server for Robot Framework test automation",
+  "version": "2.0.0",
+  "description": "MCP Server for Robot Framework test automation code generation",
   "main": "bin/robotframework-mcp.js",
   "bin": {
     "robotframework-mcp": "bin/robotframework-mcp.js"
   },
   "scripts": {
-      "start": "node bin/robotframework-mcp.js",
-     "test": "python3 mcp_server.py"
-},
+    "start": "node bin/robotframework-mcp.js",
+    "test": "pytest tests/ -v",
+    "test:coverage": "pytest tests/ -v --cov=src --cov-report=html",
+    "lint": "flake8 src/ tests/",
+    "format": "black src/ tests/ && isort src/ tests/",
+    "typecheck": "mypy src/",
+    "preinstall": "node scripts/install-python-deps.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sourcefuse/robotframework-MCP.git"
@@ -24,8 +29,21 @@
     "node": ">=14.0.0",
     "python": ">=3.10.0"
   },
+  "keywords": [
+    "mcp",
+    "robot-framework",
+    "selenium",
+    "testing",
+    "automation",
+    "test-generation",
+    "appium",
+    "api-testing",
+    "visual-regression",
+    "database-testing"
+  ],
   "files": [
     "bin/",
+    "src/",
     "mcp_server.py",
     "run_mcp.py",
     "requirements.txt",

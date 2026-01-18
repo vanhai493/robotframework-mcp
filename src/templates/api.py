@@ -1,0 +1,289 @@
+"""
+API testing templates for Robot Framework
+"""
+
+from string import Template
+from .base import BaseTemplate
+
+
+class APITestTemplate(BaseTemplate):
+    """Template for generating API integration tests"""
+    
+    def generate(
+        self,
+        base_url: str,
+        endpoint: str = "/api",
+        method: str = "GET",
+        include_auth: bool = True,
+        include_crud: bool = True,
+        include_error_handling: bool = True,
+    ) -> str:
+        """
+        Generate API integration test
+        
+        Args:
+            base_url: Base URL for API
+            endpoint: API endpoint to test
+            method: HTTP method
+            include_auth: Include authentication tests
+            include_crud: Include CRUD operation tests
+            include_error_handling: Include error handling tests
+        """
+        result = self._get_header("API Integration Test")
+        result += self._get_settings()
+        result += self._get_variables(base_url, endpoint)
+        result += self._get_basic_tests(method)
+        
+        if include_auth:
+            result += self._get_auth_tests()
+        
+        if include_crud:
+            result += self._get_crud_tests()
+        
+        if include_error_handling:
+            result += self._get_error_tests()
+        
+        result += self._get_keywords()
+        return result
+    
+    def _get_settings(self) -> str:
+        return """*** Settings ***
+Library    RequestsLibrary
+Library    Collections
+Library    JSONLibrary
+Library    String
+
+Suite Setup    Create API Session
+Suite Teardown    Delete All Sessions
+
+"""
+    
+    def _get_variables(self, base_url: str, endpoint: str) -> str:
+        return f"""*** Variables ***
+${{BASE_URL}}           {base_url}
+${{API_ENDPOINT}}       {endpoint}
+${{API_TIMEOUT}}        30
+${{AUTH_TOKEN}}         ${{EMPTY}}
+${{CONTENT_TYPE}}       application/json
+
+"""
+    
+    def _get_basic_tests(self, method: str) -> str:
+        return f"""*** Test Cases ***
+API Health Check
+    [Documentation]    Verify API is accessible
+    [Tags]    api    smoke    health
+    ${{response}}=    GET On Session    api    /health    expected_status=any
+    Should Be True    ${{response.status_code}} < 500
+
+API {method} Request Test
+    [Documentation]    Test basic {method} request
+    [Tags]    api    {method.lower()}
+    ${{response}}=    {method} On Session    api    ${{API_ENDPOINT}}
+    Status Should Be    200    ${{response}}
+    Log    Response: ${{response.json()}}
+
+API Response Content Type Test
+    [Documentation]    Verify response content type
+    [Tags]    api    headers
+    ${{response}}=    GET On Session    api    ${{API_ENDPOINT}}
+    ${{content_type}}=    Get From Dictionary    ${{response.headers}}    Content-Type
+    Should Contain    ${{content_type}}    application/json
+
+API Response Time Test
+    [Documentation]    Verify API response time is acceptable
+    [Tags]    api    performance
+    ${{response}}=    GET On Session    api    ${{API_ENDPOINT}}
+    ${{elapsed}}=    Set Variable    ${{response.elapsed.total_seconds()}}
+    Should Be True    ${{elapsed}} < 2    Response time should be under 2 seconds
+
+"""
+    
+    def _get_auth_tests(self) -> str:
+        return """# ============================================
+# Authentication Tests
+# ============================================
+
+API Authentication With Valid Token
+    [Documentation]    Test API with valid authentication
+    [Tags]    api    auth    positive
+    ${headers}=    Create Dictionary    Authorization=Bearer ${AUTH_TOKEN}
+    ${response}=    GET On Session    api    ${API_ENDPOINT}    headers=${headers}
+    Status Should Be    200    ${response}
+
+API Authentication Without Token
+    [Documentation]    Test API without authentication token
+    [Tags]    api    auth    negative
+    ${response}=    GET On Session    api    ${API_ENDPOINT}/protected    expected_status=401
+    Status Should Be    401    ${response}
+
+API Authentication With Invalid Token
+    [Documentation]    Test API with invalid authentication token
+    [Tags]    api    auth    negative    security
+    ${headers}=    Create Dictionary    Authorization=Bearer invalid_token_12345
+    ${response}=    GET On Session    api    ${API_ENDPOINT}/protected
+    ...    headers=${headers}    expected_status=401
+    Status Should Be    401    ${response}
+
+API Token Refresh Test
+    [Documentation]    Test token refresh functionality
+    [Tags]    api    auth    token
+    ${body}=    Create Dictionary    refresh_token=${REFRESH_TOKEN}
+    ${response}=    POST On Session    api    /auth/refresh    json=${body}    expected_status=any
+    Run Keyword If    ${response.status_code} == 200
+    ...    Log    Token refreshed successfully
+
+"""
+    
+    def _get_crud_tests(self) -> str:
+        return """# ============================================
+# CRUD Operation Tests
+# ============================================
+
+API Create Resource (POST)
+    [Documentation]    Test creating a new resource
+    [Tags]    api    crud    create
+    ${body}=    Create Dictionary    name=Test Resource    description=Created by automation
+    ${response}=    POST On Session    api    ${API_ENDPOINT}    json=${body}
+    Status Should Be    201    ${response}
+    ${json}=    Set Variable    ${response.json()}
+    Dictionary Should Contain Key    ${json}    id
+    Set Suite Variable    ${CREATED_ID}    ${json}[id]
+
+API Read Resource (GET)
+    [Documentation]    Test reading a resource
+    [Tags]    api    crud    read
+    ${response}=    GET On Session    api    ${API_ENDPOINT}/${CREATED_ID}
+    Status Should Be    200    ${response}
+    ${json}=    Set Variable    ${response.json()}
+    Should Be Equal    ${json}[name]    Test Resource
+
+API Update Resource (PUT)
+    [Documentation]    Test updating a resource
+    [Tags]    api    crud    update
+    ${body}=    Create Dictionary    name=Updated Resource    description=Updated by automation
+    ${response}=    PUT On Session    api    ${API_ENDPOINT}/${CREATED_ID}    json=${body}
+    Status Should Be    200    ${response}
+    ${json}=    Set Variable    ${response.json()}
+    Should Be Equal    ${json}[name]    Updated Resource
+
+API Partial Update Resource (PATCH)
+    [Documentation]    Test partial update of a resource
+    [Tags]    api    crud    patch
+    ${body}=    Create Dictionary    description=Patched description
+    ${response}=    PATCH On Session    api    ${API_ENDPOINT}/${CREATED_ID}    json=${body}
+    Status Should Be    200    ${response}
+
+API Delete Resource (DELETE)
+    [Documentation]    Test deleting a resource
+    [Tags]    api    crud    delete
+    ${response}=    DELETE On Session    api    ${API_ENDPOINT}/${CREATED_ID}
+    Status Should Be    204    ${response}
+
+API Verify Deleted Resource
+    [Documentation]    Verify resource is deleted
+    [Tags]    api    crud    delete    verify
+    ${response}=    GET On Session    api    ${API_ENDPOINT}/${CREATED_ID}    expected_status=404
+    Status Should Be    404    ${response}
+
+"""
+    
+    def _get_error_tests(self) -> str:
+        return """# ============================================
+# Error Handling Tests
+# ============================================
+
+API Not Found Error (404)
+    [Documentation]    Test 404 error handling
+    [Tags]    api    error    404
+    ${response}=    GET On Session    api    /nonexistent/endpoint    expected_status=404
+    Status Should Be    404    ${response}
+
+API Bad Request Error (400)
+    [Documentation]    Test 400 error handling with invalid data
+    [Tags]    api    error    400
+    ${body}=    Create Dictionary    invalid_field=value
+    ${response}=    POST On Session    api    ${API_ENDPOINT}    json=${body}    expected_status=any
+    Should Be True    ${response.status_code} >= 400
+
+API Method Not Allowed (405)
+    [Documentation]    Test 405 error for unsupported method
+    [Tags]    api    error    405
+    ${response}=    DELETE On Session    api    /health    expected_status=405
+    Status Should Be    405    ${response}
+
+API Rate Limiting Test
+    [Documentation]    Test API rate limiting
+    [Tags]    api    error    rate-limit
+    FOR    ${i}    IN RANGE    100
+        ${response}=    GET On Session    api    ${API_ENDPOINT}    expected_status=any
+        Exit For Loop If    ${response.status_code} == 429
+    END
+    Log    Rate limit test completed
+
+API Validation Error Test
+    [Documentation]    Test validation error responses
+    [Tags]    api    error    validation
+    ${body}=    Create Dictionary    name=${EMPTY}    email=invalid-email
+    ${response}=    POST On Session    api    ${API_ENDPOINT}    json=${body}    expected_status=any
+    Should Be True    ${response.status_code} >= 400
+    ${json}=    Set Variable    ${response.json()}
+    Dictionary Should Contain Key    ${json}    errors
+
+"""
+    
+    def _get_keywords(self) -> str:
+        return """*** Keywords ***
+Create API Session
+    [Documentation]    Create API session with base configuration
+    ${headers}=    Create Dictionary    Content-Type=${CONTENT_TYPE}    Accept=application/json
+    Create Session    api    ${BASE_URL}    headers=${headers}    timeout=${API_TIMEOUT}    verify=${True}
+
+Authenticate And Get Token
+    [Arguments]    ${username}    ${password}
+    [Documentation]    Authenticate and store token
+    ${body}=    Create Dictionary    username=${username}    password=${password}
+    ${response}=    POST On Session    api    /auth/login    json=${body}
+    Status Should Be    200    ${response}
+    ${json}=    Set Variable    ${response.json()}
+    Set Suite Variable    ${AUTH_TOKEN}    ${json}[token]
+    RETURN    ${json}[token]
+
+Verify Response Schema
+    [Arguments]    ${response}    ${required_fields}
+    [Documentation]    Verify response contains required fields
+    ${json}=    Set Variable    ${response.json()}
+    FOR    ${field}    IN    @{required_fields}
+        Dictionary Should Contain Key    ${json}    ${field}
+    END
+
+Verify Response Array Length
+    [Arguments]    ${response}    ${min_length}=1
+    [Documentation]    Verify response array has minimum length
+    ${json}=    Set Variable    ${response.json()}
+    ${length}=    Get Length    ${json}
+    Should Be True    ${length} >= ${min_length}
+
+Log API Response
+    [Arguments]    ${response}
+    [Documentation]    Log API response details
+    Log    Status: ${response.status_code}
+    Log    Headers: ${response.headers}
+    Log    Body: ${response.text}
+
+Verify Pagination
+    [Arguments]    ${response}
+    [Documentation]    Verify pagination fields in response
+    ${json}=    Set Variable    ${response.json()}
+    Dictionary Should Contain Key    ${json}    page
+    Dictionary Should Contain Key    ${json}    total
+    Dictionary Should Contain Key    ${json}    per_page
+
+Make Authenticated Request
+    [Arguments]    ${method}    ${endpoint}    ${body}=${None}
+    [Documentation]    Make authenticated API request
+    ${headers}=    Create Dictionary    Authorization=Bearer ${AUTH_TOKEN}
+    ${response}=    Run Keyword    ${method} On Session    api    ${endpoint}
+    ...    headers=${headers}    json=${body}    expected_status=any
+    RETURN    ${response}
+"""
